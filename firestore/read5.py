@@ -1,41 +1,24 @@
 import firebase_admin
 from firebase_admin import credentials, firestore
-from flask import Flask, request
+from google.cloud.firestore_v1.base_query import FieldFilter
 
-# 1. 初始化
+# 避免重複初始化 Firebase App
 if not firebase_admin._apps:
     cred = credentials.Certificate("serviceAccountKey.json")
     firebase_admin.initialize_app(cred)
 
-app = Flask(__name__)
+db = firestore.client()
 
-@app.route("/api_query")
-def api_query():
-    # 透過網址傳值查詢，例如：/api_query?name=張
-    keyword = request.args.get("name")
-    if not keyword:
-        return "請在網址後方輸入查詢參數，例如：?name=老師名字"
+# 設定集合名稱為「靜宜資管」
+collection_ref = db.collection("靜宜資管")
+docs = collection_ref.get()
 
-    db = firestore.client()
-    docs = db.collection("靜宜資管").get()
-    
-    output = f"正在為您查詢包含「{keyword}」的老師...<br><br>"
-    results_count = 0
-    
-    for doc in docs:
-        user = doc.to_dict()
-        if keyword in user.get("name", ""):
-            results_count += 1
-            output += f"【第 {results_count} 筆】<br>"
-            output += f"教師姓名：{user['name']}<br>"
-            output += f"研究室位置：{user['lab']}<br>"
-            output += "-" * 30 + "<br>"
+# 修正變數拼字：keywoed -> keyword
+keyword = input("您要查詢老師的名字? ")
 
-    if results_count == 0:
-        return f"找不到關於「{keyword}」的老師。"
-    
-    return output
-
-if __name__ == "__main__":
-    # 本地測試使用
-    app.run(port=8000)
+for doc in docs:
+    user = doc.to_dict()
+    # 修正語法：加上冒號，並確保 "name" 鍵值存在於字典中
+    if "name" in user and keyword in user["name"]:
+        # 修正 f-string 內的引號衝突
+        print(f"{user['name']}老師的研究室在{user['lab']}")
