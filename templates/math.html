@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>我的簡易計算機</title>
+</head>
+<body>
+    <h1>網頁版計算機</h1>
+    <button onclick="calculate()">開始計算</button>
+
+    <script>
+        function calculate() {
+            let x = parseInt(prompt("請輸入x"));
+            let opt = prompt("請輸入+-*/");
+            let y = parseInt(prompt("請輸入y"));
+            let result;
+
+            if (opt === "/" && y === 0) {
+                alert("除數不能等於0");
+                return; // 結束函數
+            }
+
+            switch (opt) {
+                case "+": result = x + y; break;
+                case "-": result = x - y; break;
+                case "*": result = x * y; break;
+                case "/": result = x / y; break;
+                default:
+                    alert("請輸入正確的運算子");
+                    return;
+            }
+
+            alert(`${x} ${opt} ${y} 的結果是 ${result}`);
+        }
+    </script>
+</body>
+</html>
