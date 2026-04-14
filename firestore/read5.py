@@ -9,6 +9,10 @@ db = firestore.client()
 
 collection_ref = db.collection("靜宜資管")
 #docs = collection_ref.where(filter=FieldFilter("mail","==", "tcyang@pu.edu.tw")).get()
-docs = collection_ref.order_by("lab",direction=firestore.Query.DESCENDING).limit(3).get()
+docs = collection_ref.get()
+
+keywoed = input("您要查詢老師的名字")
 for doc in docs:
-    print("文件內容：{}".format(doc.to_dict()))
+    user = doc.to_dict()
+    if keyword in user ["name"]
+        print(f"{user['name']}老師的研究室在{user['lab']}")
