@@ -1,3 +1,4 @@
 flask
 firebase_admin
 google-cloud-firestore
+bs4
