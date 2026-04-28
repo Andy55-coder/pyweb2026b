@@ -37,8 +37,53 @@ def index():
     link += "<a href=/read>讀取Firestore資料(根據lab遞減排序,取前3)</a><hr>"
     link += "<a href=/search>查詢老師研究室</a><hr>"
     link += "<a href=/movie>即將上映電影</a><hr>" 
-    link += "<a href=/movie2>讀取開眼電影即將上映影片，寫入Firestore</a><br>" 
+    link += "<a href=/movie2>讀取開眼電影即將上映影片，寫入Firestore</a><hr>"
+    link += "<a href=/movie3>電影查詢</a><br>"
     return link
+
+@app.route("/movie3", methods=["GET", "POST"])
+def movie3():
+    if request.method == "POST":
+        keyword = request.form["keyword"]
+
+        url = "https://www.atmovies.com.tw/movie/next/"
+        data = requests.get(url)
+        data.encoding = "utf-8"
+
+        sp = BeautifulSoup(data.text, "html.parser")
+        result = sp.select(".filmListAllX li")
+
+        output = f"<h2>搜尋結果：{keyword}</h2>"
+
+        found = False
+
+        for item in result:
+            title = item.find("img").get("alt")
+            link = item.find("a").get("href")
+            full_link = "https://www.atmovies.com.tw" + link
+
+            # 🔍 關鍵字比對
+            if keyword in title:
+                found = True
+                output += f"{title}<br>"
+                output += f"<a href='{full_link}' target='_blank'>查看電影</a><br><br>"
+
+        if not found:
+            output += "查無相關電影 😢<br>"
+
+        output += "<a href='/movie3'>返回</a>"
+        return output
+
+    return """
+    <h2>電影關鍵字搜尋</h2>
+    <form method="post">
+        請輸入電影名稱關鍵字：
+        <input type="text" name="keyword">
+        <input type="submit" value="搜尋">
+    </form>
+    <a href="/">回首頁</a>
+    """
+
 
 
 @app.route("/movie2")
