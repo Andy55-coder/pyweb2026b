@@ -8,4 +8,5 @@ Data = requests.get(url)
 #print(Data.text)
 Weather = json.loads(Data.text)["records"]["location"][0]["weatherElement"][0]["time"][0]["parameter"]["parameterName"]
 Rain = json.loads(Data.text)["records"]["location"][0]["weatherElement"][1]["time"][0]["parameter"]["parameterName"]
+print(city + "目前天氣預報")
 print(Weather + "，降雨機率：" + Rain + "%")
