@@ -64,10 +64,11 @@ def webhook():
         
         result = ""
         for doc in docs:
-            movie_data = doc.to_dict()
-            if "rate" in movie_data and rate in movie_data["rate"]:
-                result += "片名：" + movie_data.get("title", "") + "\n"
-                result += "介紹：" + movie_data.get("hyperlink", "") + "\n\n"
+            dict = doc.to_dict()
+            if rate in dict["rate"]:
+                result += "片名：" + dict["title"] + "\n"
+                result += "介紹：" + dict["hyperlink"] + "\n\n"
+
         info += result
 
     return make_response(jsonify({"fulfillmentText": info}))
