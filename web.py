@@ -48,38 +48,45 @@ def index():
 # --- 3. Dialogflow Webhook (電影查詢邏輯) ---
 @app.route("/webhook", methods=["POST"])
 def webhook():
+    # 讀取 Dialogflow 傳來的 JSON
     req = request.get_json(force=True)
-    query_result = req.get("queryResult", {})
-    action = query_result.get("action")
-    
-    info = ""
-    
+   
+    # 取得 Action 名稱
+    action = req.get("queryResult").get("action")
+   
     if action == "rateChoice":
-        parameters = query_result.get("parameters", {})
-        rate = parameters.get("rate") # Dialogflow 抓到的分級參數
-        
-        if not rate:
-            return make_response(jsonify({"fulfillmentText": "請告訴我您想看哪種分級的電影 (如：普遍級)。"}))
-
-        info = f"我是黃彥璋開發的電影機器人，為您找到分級為【{rate}】的本週新片：\n\n"
-        
-        # 這裡必須對應爬蟲存入的集合名稱
+        # 取得使用者選擇的分級 (例如: 輔12級)
+        rate = req.get("queryResult").get("parameters").get("rate")
+       
+        # 準備回傳的初始文字
+        info = f"我是石詠澤設計的電影機器人，為您查詢【{rate}】的電影：\n"
+       
+        db = firestore.client()
+        # 💡 確保這裡的集合名稱跟您 Firestore 裡面的一模一樣
         collection_ref = db.collection("本週新片含分級")
-        docs = collection_ref.where("rate", "==", rate).stream()
-        
-        result_text = ""
-        count = 0
+        docs = collection_ref.get()
+       
+        result = ""
         for doc in docs:
-            m = doc.to_dict()
-            result_text += f"🎬 {m.get('title')}\n🔗 介紹：{m.get('hyperlink')}\n\n"
-            count += 1
-
-        if count == 0:
-            info = f"抱歉，目前資料庫中沒有【{rate}】的相關電影資訊。"
+            movie = doc.to_dict()
+            # 進行分級比對
+            if movie.get("rate") == rate:
+                result += "--------------------\n"
+                result += f"🎬 片名：{movie['title']}\n"
+                result += f"📅 上映：{movie['showDate']}\n"
+                result += f"🔗 介紹：{movie['hyperlink']}\n"
+       
+        # 如果沒找到電影
+        if result == "":
+            info += f"\n目前資料庫中沒有【{rate}】的電影喔！"
         else:
-            info += result_text
+            info += result
 
-    return make_response(jsonify({"fulfillmentText": info}))
+        # 回傳給 Dialogflow
+        return make_response(jsonify({"fulfillmentText": info}))
+
+    return make_response(jsonify({"fulfillmentText": "機器人目前不理解這個動作。"}))
+
 
 # --- 4. 電影爬蟲路由 (寫入資料庫) ---
 @app.route("/rate")
