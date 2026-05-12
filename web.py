@@ -42,34 +42,48 @@ def index():
     link += "<a href=/rate>本週新片含分級</a><br>"
     return link
 
+from flask import Flask, request, make_response, jsonify
+from firebase_admin import firestore
+
+# 初始化 db (建議放在全域)
+db = firestore.client()
+
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    # build a request object
     req = request.get_json(force=True)
+    query_result = req.get("queryResult", {})
+    action = query_result.get("action")
     
-    # fetch queryResult from json
-    action = req.get("queryResult").get("action")
-    
-    # 初始化 info，避免 action 不匹配時報錯
     info = ""
     
-    if (action == "rateChoice"):
-        rate = req.get("queryResult").get("parameters").get("rate")
-        info = "我是黃彥璋開發的電影聊天機器人,您選擇的電影分級是：" + rate + "，相關電影：\n"
+    if action == "rateChoice":
+        # 獲取參數，增加預設值避免 NoneType 報錯
+        parameters = query_result.get("parameters", {})
+        rate = parameters.get("rate")
         
-        # 修正：以下這段資料庫存取必須縮排在 if 內
-        db = firestore.client()
+        if not rate:
+            return make_response(jsonify({"fulfillmentText": "請告訴我您想看哪種分級的電影。"}))
+
+        info = f"我是黃彥璋開發的電影聊天機器人，您選擇的分級是：{rate}，相關電影：\n\n"
+        
+        # 優化：直接從 Firestore 過濾資料 (假設欄位名稱為 rate)
         collection_ref = db.collection("電影含分級")
-        docs = collection_ref.get()
+        # 使用 where 做伺服器端過濾，效能遠高於全表掃描
+        docs = collection_ref.where("rate", "==", rate).stream()
         
         result = ""
+        count = 0
         for doc in docs:
-            dict = doc.to_dict()
-            if rate in dict["rate"]:
-                result += "片名：" + dict["title"] + "\n"
-                result += "介紹：" + dict["hyperlink"] + "\n\n"
+            movie_data = doc.to_dict()
+            title = movie_data.get("title", "未知片名")
+            link = movie_data.get("hyperlink", "暫無連結")
+            result += f"🎬 片名：{title}\n🔗 介紹：{link}\n\n"
+            count += 1
 
-        info += result
+        if count == 0:
+            info += "抱歉，目前資料庫中沒有找到符合該分級的電影。"
+        else:
+            info += result
 
     return make_response(jsonify({"fulfillmentText": info}))
 
