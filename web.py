@@ -46,13 +46,29 @@ def index():
 def webhook():
     # build a request object
     req = request.get_json(force=True)
+    
     # fetch queryResult from json
-    action =  req.get("queryResult").get("action")
-    #msg =  req.get("queryResult").get("queryText")
-    #info = "我是黃彥璋設計的電影聊天機器人, 動作：" + action + "； 查詢內容：" + msg
+    action = req.get("queryResult").get("action")
+    
+    # 初始化 info，避免 action 不匹配時報錯
+    info = ""
+    
     if (action == "rateChoice"):
-        rate =  req.get("queryResult").get("parameters").get("rate")
-        info = "您選擇的電影分級是：" + rate
+        rate = req.get("queryResult").get("parameters").get("rate")
+        info = "我是黃彥璋開發的電影聊天機器人,您選擇的電影分級是：" + rate + "，相關電影：\n"
+        
+        # 修正：以下這段資料庫存取必須縮排在 if 內
+        db = firestore.client()
+        collection_ref = db.collection("電影含分級")
+        docs = collection_ref.get()
+        
+        result = ""
+        for doc in docs:
+            movie_data = doc.to_dict()
+            if "rate" in movie_data and rate in movie_data["rate"]:
+                result += "片名：" + movie_data.get("title", "") + "\n"
+                result += "介紹：" + movie_data.get("hyperlink", "") + "\n\n"
+        info += result
 
     return make_response(jsonify({"fulfillmentText": info}))
 
