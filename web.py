@@ -46,8 +46,11 @@ def index():
     return link
 
 
-# ================== 補增缺失的路由 ==================
-@app.route("/mis")
+@app.route("/demo")
+def about():
+    return render_template("demo.html")
+
+
 def mis():
     # 補上原本缺少的課程資訊路由
     return "<h2>資訊管理導論（MIS）相關課程資訊頁面</h2><br><a href='/'>回首頁</a>"
