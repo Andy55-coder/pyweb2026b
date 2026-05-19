@@ -43,6 +43,7 @@ def index():
     link += "<a href=/road>十大肇事路口</a><hr>"
     link += "<a href=/weather>天氣預報</a><hr>"
     link += "<a href=/rate>電影分級</a><hr>"
+    link += "<a href=/demo>聊天機器人</a><hr>"
     return link
 
 
