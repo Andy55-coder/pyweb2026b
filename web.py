@@ -47,7 +47,7 @@ def index():
 
 
 @app.route("/demo")
-def about():
+def demo():
     return render_template("demo.html")
 
 
