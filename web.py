@@ -89,7 +89,7 @@ def webhook():
         rate = req.get("queryResult").get("parameters").get("rate")
         
         # 準備回傳的初始文字
-        info = f"我是電影機器人，為您查詢【{rate}】的電影：\n"
+        info = f"我是黃彥璋的電影機器人，為您查詢【{rate}】的電影：\n"
         
         db = firestore.client()
         # 💡 確保這裡的集合名稱跟您 Firestore 裡面的一模一樣
