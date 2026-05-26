@@ -119,78 +119,75 @@ def read():
 
 
 # ================== Webhook (Dialogflow) ==================@app.route("/webhook", methods=["POST"])
+# ================== Webhook (Dialogflow) ==================
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    req = request.get_json(force=True)
-    
-    # 💡 優化 2：安全地取得 action，若結構不符則預設為空字串
-    query_result = req.get("queryResult", {})
-    action = query_result.get("action", "")
-    
-    # 預設回傳訊息，防止 action 都不匹配時報錯
-    info = "抱歉，我聽不懂你在說什麼。" 
-    
-    # 1. 處理電影分級查詢
-    if action == "rateChoice":
-        parameters = query_result.get("parameters", {})
-        rate = parameters.get("rate")
+    try:
+        req = request.get_json(force=True)
+        query_result = req.get("queryResult", {})
+        action = query_result.get("action", "")
         
-        if not rate:
-            info = "請告訴我您想查詢的電影分級（例如：普遍級、輔12級）。"
-        else:
-            info = f"我是黃彥璋設計的電影聊天機器人，您選擇的分級是：{rate}，相關電影：\n\n"
-            
-            # 集合名稱改為 "本週新片含分級"
-            collection_ref = db.collection("本週新片含分級")
-            
-            # 使用精確查詢
-            docs = collection_ref.where("rate", "==", rate).get()
-            
-            result = ""
-            for doc in docs:
-                movie_data = doc.to_dict()
-                title = movie_data.get("title", "未知片名")
-                picture = movie_data.get("picture", "#")
-                
-                result += f"🎬 片名：{title}\n"
-                result += f"🔗 圖片/連結：{picture}\n\n"
-            
-            if not result:
-                result = f"找不到符合 {rate} 的電影，請確認分級輸入是否正確（例如：輔12級）。"
-                
-            info += result
-
-    # 2. 當 Dialogflow 聽不懂時，交給 Gemini 自由發揮
-    elif action == "input.unknown":
-        user_query = query_result.get("queryText", "")
+        info = "抱歉，我聽不懂你在說什麼。" 
         
-        # 設定希望限制的最大 Token 數
-        ai_config = genai.types.GenerateContentConfig(
-            max_output_tokens=500
-        )
-
-        try:
-            # 💡 優化 3：加入 try-except，避免 Gemini API 呼叫失敗導致整個 Webhook 崩潰
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=user_query,
-                config=ai_config
-            )
+        # 1. 處理電影分級查詢
+        if action == "rateChoice":
+            parameters = query_result.get("parameters", {})
+            rate = parameters.get("rate")
             
-            # 確保有拿到文字回應
-            if response.text:
-                info = response.text
+            if not rate:
+                info = "請告訴我您想查詢的電影分級（例如：普遍級、輔12級）。"
             else:
-                info = "我現在稍微有點混亂，請換個方式問我試試看！"
-        except Exception as e:
-            print(f"Gemini API 發生錯誤: {e}")
-            info = "真抱歉，我的大腦暫時連不上線，請稍後再試。"
-    
-    # 3. 其他未定義的 Action
-    else:
-        info = "Action 不匹配，無法處理此請求。"
+                info = f"我是電影聊天機器人，您選擇的分級是：{rate}，相關電影：\n\n"
+                
+                collection_ref = db.collection("本週新片含分級")
+                docs = collection_ref.where("rate", "==", rate).get()
+                
+                result = ""
+                for doc in docs:
+                    movie_data = doc.to_dict()
+                    title = movie_data.get("title", "未知片名")
+                    picture = movie_data.get("picture", "#")
+                    result += f"🎬 片名：{title}\n🔗 圖片/連結：{picture}\n\n"
+                
+                if not result:
+                    result = f"找不到符合 {rate} 的電影，請確認分級輸入是否正確。"
+                info += result
 
-    # 統一在最外層回傳給 Dialogflow
-    return make_response(jsonify({"fulfillmentText": info}))
+        # 2. 當 Dialogflow 聽不懂時，交給 Gemini 自由發揮
+        elif action == "input.unknown":
+            # 💡 雙重保險：優先拿 queryText，拿不到就拿 resolvedQuery
+            user_query = query_result.get("queryText", query_result.get("resolvedQuery", ""))
+            
+            if not user_query:
+                # 如果真的還是空的，拿最外層的 text
+                user_query = req.get("text", "")
+
+            if user_query:
+                ai_config = types.GenerateContentConfig(
+                    max_output_tokens=300  # 稍微縮短一點加速生成
+                )
+                
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=user_query,
+                    config=ai_config
+                )
+                
+                if response.text:
+                    info = response.text
+                else:
+                    info = "Gemini 沒有回傳任何文字，請再試一次。"
+            else:
+                info = "後端收到了請求，但無法解析你輸入的文字內容。"
+        
+        else:
+            info = f"Action [{action}] 不匹配，無法處理此請求。"
+
+        return make_response(jsonify({"fulfillmentText": info}))
+
+    except Exception as e:
+        # 如果出錯，直接把具體的錯誤原因吐在畫面上，方便我們一目了然除錯！
+        return make_response(jsonify({"fulfillmentText": f"後端執行失敗，錯誤原因: {str(e)}"}))
 # ================== movie2 ==================
 @app.route("/movie2")
 def movie2():
