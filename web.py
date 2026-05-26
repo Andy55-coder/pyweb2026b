@@ -122,6 +122,7 @@ def webhook():
     # 取得 Action 名稱
     action = req.get("queryResult").get("action")
     
+    # --- 狀況一：使用者選擇了電影分級 ---
     if action == "rateChoice":
         # 取得使用者選擇的分級 (例如: 輔12級)
         rate = req.get("queryResult").get("parameters").get("rate")
@@ -153,6 +154,18 @@ def webhook():
         # 回傳給 Dialogflow
         return make_response(jsonify({"fulfillmentText": info}))
 
+    # --- 狀況二：Dialogflow 觸發了預設罐頭回覆 (聽不懂使用者的話) ---
+    elif action == "input.unknown":
+        # 取得使用者剛剛到底說了什麼話
+        user_text = req.get("queryResult", {}).get("queryText", "")
+        
+        # 這裡組合您想要回傳給使用者的訊息
+        # 您可以單純回覆使用者說的話，或是加上貼心的提示
+        info = f"抱歉，我聽不懂您說的「{user_text}」。您可以試著對我說：普級、輔12級 或 保護級 來查詢電影喔！"
+        
+        return make_response(jsonify({"fulfillmentText": info}))
+
+    # --- 狀況三：其他未定義的 Action ---
     return make_response(jsonify({"fulfillmentText": "機器人目前不理解這個動作。"}))
 
 
