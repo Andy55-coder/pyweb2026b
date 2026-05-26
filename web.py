@@ -156,7 +156,7 @@ def webhook():
     # 這裡就是您要加入的兩行邏輯（已修正縮進與安全讀取）
     elif action == "input.unknown":
         ai_config = types.GenerteContentConfig(
-            max_output_tokens = 128
+            max_output_tokens = 500
         )
 
         response = client.models.generate_content(
