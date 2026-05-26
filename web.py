@@ -113,59 +113,75 @@ def read():
         return f"讀取失敗：{str(e)}<br><a href='/'>回首頁</a>"
 
 
-# ================== Webhook (Dialogflow) ==================
-@app.route("/webhook", methods=["POST"])
+# ================== Webhook (Dialogflow) ==================@app.route("/webhook", methods=["POST"])
 def webhook():
     req = request.get_json(force=True)
-    action = req.get("queryResult").get("action")
+    
+    # 💡 優化 2：安全地取得 action，若結構不符則預設為空字串
+    query_result = req.get("queryResult", {})
+    action = query_result.get("action", "")
     
     # 預設回傳訊息，防止 action 都不匹配時報錯
     info = "抱歉，我聽不懂你在說什麼。" 
     
+    # 1. 處理電影分級查詢
     if action == "rateChoice":
-        # 取得 Dialogflow 傳來的分級 (例如: "輔12級")
-        rate = req.get("queryResult").get("parameters").get("rate")
+        parameters = query_result.get("parameters", {})
+        rate = parameters.get("rate")
         
-        info = f"我是黃彥璋設計的電影聊天機器人，您選擇的分級是：{rate}，相關電影：\n\n"
-        
-        db = firestore.client()
-        # 集合名稱改為 "本週新片含分級"
-        collection_ref = db.collection("本週新片含分級")
-        
-        # 使用精確查詢
-        docs = collection_ref.where("rate", "==", rate).get()
-        
-        result = ""
-        for doc in docs:
-            movie_data = doc.to_dict()
-            title = movie_data.get("title", "未知片名")
-            picture = movie_data.get("picture", "#")
+        if not rate:
+            info = "請告訴我您想查詢的電影分級（例如：普遍級、輔12級）。"
+        else:
+            info = f"我是黃彥璋設計的電影聊天機器人，您選擇的分級是：{rate}，相關電影：\n\n"
             
-            result += f"🎬 片名：{title}\n"
-            result += f"🔗 圖片/連結：{picture}\n\n"
-        
-        if not result:
-            result = f"找不到符合 {rate} 的電影，請確認分級輸入是否正確（例如：輔12級）。"
+            # 集合名稱改為 "本週新片含分級"
+            collection_ref = db.collection("本週新片含分級")
             
-        info += result
+            # 使用精確查詢
+            docs = collection_ref.where("rate", "==", rate).get()
+            
+            result = ""
+            for doc in docs:
+                movie_data = doc.to_dict()
+                title = movie_data.get("title", "未知片名")
+                picture = movie_data.get("picture", "#")
+                
+                result += f"🎬 片名：{title}\n"
+                result += f"🔗 圖片/連結：{picture}\n\n"
+            
+            if not result:
+                result = f"找不到符合 {rate} 的電影，請確認分級輸入是否正確（例如：輔12級）。"
+                
+            info += result
 
+    # 2. 當 Dialogflow 聽不懂時，交給 Gemini 自由發揮
     elif action == "input.unknown":
+        user_query = query_result.get("queryText", "")
+        
         # 設定希望限制的最大 Token 數
-        ai_config = types.GenerateContentConfig(
+        ai_config = genai.types.GenerateContentConfig(
             max_output_tokens=500
         )
 
-        response = client.models.generate_content(
-            model='gemini-2.5-flash', # 註：目前官方正式版為 2.5，若您有特殊管道使用 3.5 請保持原樣
-            contents=req["queryResult"]["queryText"],
-            config=ai_config
-        )
-        
-        # 修正縮排：確保 info 有正確賦值
-        info = response.text
+        try:
+            # 💡 優化 3：加入 try-except，避免 Gemini API 呼叫失敗導致整個 Webhook 崩潰
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=user_query,
+                config=ai_config
+            )
+            
+            # 確保有拿到文字回應
+            if response.text:
+                info = response.text
+            else:
+                info = "我現在稍微有點混亂，請換個方式問我試試看！"
+        except Exception as e:
+            print(f"Gemini API 發生錯誤: {e}")
+            info = "真抱歉，我的大腦暫時連不上線，請稍後再試。"
     
+    # 3. 其他未定義的 Action
     else:
-        # 當 action 都不匹配時的處理
         info = "Action 不匹配，無法處理此請求。"
 
     # 統一在最外層回傳給 Dialogflow
