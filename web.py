@@ -8,7 +8,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from flask import Flask, render_template, request, make_response, jsonify
 from google import genai
-
+import google.generativeai as genai
 
 # ================== Firebase 初始化 ==================
 # 判斷是在 Vercel 還是本地環境
