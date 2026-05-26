@@ -116,66 +116,47 @@ def read():
 # ================== Webhook (Dialogflow) ==================
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    # 讀取 Dialogflow 傳來的 JSON
+    # build a request object
     req = request.get_json(force=True)
-    
-    # 取得 Action 名稱
-    action = req.get("queryResult").get("action")
-    
-    if action == "rateChoice":
-        # 取得使用者選擇的分級 (例如: 輔12級)
-        rate = req.get("queryResult").get("parameters").get("rate")
-        
-        # 準備回傳的初始文字
-        info = f"我是黃彥璋的電影機器人，為您查詢【{rate}】的電影：\n"
-        
+    # fetch queryResult from json
+    action =  req["queryResult"]["action"]
+    #msg =  req["queryResult"]["queryText"]
+    #info = "我是吳菀秦設計的電影聊天機器人, 動作：" + action + "； 查詢內容：" + msg
+    if (action == "rateChoice"):
+        rate =  req["queryResult"]["parameters"]["rate"]
+        info = "我是黃彥璋設計的電影聊天機器人,您選擇的電影分級是：" + rate + "，相關電影：\n"
+
         db = firestore.client()
-        # 💡 確保這裡的集合名稱跟您 Firestore 裡面的一模一樣
         collection_ref = db.collection("本週新片含分級")
         docs = collection_ref.get()
-        
         result = ""
         for doc in docs:
-            movie = doc.to_dict()
-            # 進行分級比對
-            if movie.get("rate") == rate:
-                result += "--------------------\n"
-                result += f"🎬 片名：{movie['title']}\n"
-                result += f"📅 上映：{movie['showDate']}\n"
-                result += f"🔗 介紹：{movie['hyperlink']}\n"
-        
-        # 如果沒找到電影
-        if result == "":
-            info += f"\n目前資料庫中沒有【{rate}】的電影喔！"
-        else:
-            info += result
+            dict = doc.to_dict()
+            if rate in dict["rate"]:
+                result += "片名：" + dict["title"] + "\n"
+                result += "介紹：" + dict["hyperlink"] + "\n\n"
+        info += result
 
-        # 回傳給 Dialogflow
-        return make_response(jsonify({"fulfillmentText": info}))
+    elif (action == "input.unknown"):
+        #info =  req["queryResult"]["queryText"]
 
-    # 🛠️ 修正 1：elif 必須跟上面的 if 對齊，不能縮進進去
-    elif action == "input.unknown":
-        # 安全地取得使用者輸入的文字
-        user_query = req.get("queryResult", {}).get("queryText", "")
-
-        # 🛠️ 修正 2：更正拼字錯誤 GenerateContentConfig
+        # 2. 建立設定物件，設定你希望限制的最大 Token 數（例如 500）
         ai_config = types.GenerateContentConfig(
-            max_output_tokens=500
+            max_output_tokens = 500
         )
 
-        # 呼叫 Gemini API
+
+            # 每次使用者拜訪該路徑時，直接使用全域的 client 呼叫模型
         response = client.models.generate_content(
-            model='gemini-2.5-flash', # 💡 修正 3：更正模型名稱
-            contents=user_query,       # 💡 修正 4：傳入變數，而不是字串
+            model='gemini-3.5-flash',
+            contents=req["queryResult"]["queryText"],
             config=ai_config,
         )
+   
+        # 回傳生成的文字
         info = response.text
 
-        return make_response(jsonify({"fulfillmentText": info}))
-
-    # 漏掉的預設回覆，當既不是 rateChoice 也不是 input.unknown 時執行
-    return make_response(jsonify({"fulfillmentText": "機器人目前不理解這個動作。"}))
-
+    return make_response(jsonify({"fulfillmentText": info}))
 
 # ================== movie2 ==================
 @app.route("/movie2")
