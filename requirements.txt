@@ -2,3 +2,4 @@ flask
 firebase_admin
 google-cloud-firestore
 bs4
+google-genai

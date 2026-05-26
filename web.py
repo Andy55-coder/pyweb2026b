@@ -7,6 +7,8 @@ from bs4 import BeautifulSoup
 import firebase_admin
 from firebase_admin import credentials, firestore
 from flask import Flask, render_template, request, make_response, jsonify
+from google import genai
+
 
 # ================== Firebase 初始化 ==================
 # 判斷是在 Vercel 還是本地環境
@@ -21,8 +23,10 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 app = Flask(__name__)
+client = genai.Client(api_key=api_key)
 
-# ================== 首頁 ==================
+
+
 @app.route("/")
 def index():
     # 修正首頁歡迎名稱，並維持原本的超連結架構
@@ -44,8 +48,17 @@ def index():
     link += "<a href=/weather>天氣預報</a><hr>"
     link += "<a href=/rate>電影分級</a><hr>"
     link += "<a href=/demo>聊天機器人</a><hr>"
+    link += "<a href=/AI>Gemini</a><hr>"
     return link
 
+@app.route("/AI")
+def AI():
+    # 每次使用者拜訪該路徑時，直接使用全域的 client 呼叫模型
+    response = client.models.generate_content(
+        model='gemini-3.5-flash',
+        contents='我想查詢靜宜大學資管系的評價？',
+    )
+    return response.text
 
 @app.route("/demo")
 def demo():
