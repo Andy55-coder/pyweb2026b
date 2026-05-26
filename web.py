@@ -23,7 +23,7 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 
 app = Flask(__name__)
-client = genai.Client(api_key=api_key)
+client = genai.Client()
 
 
 
