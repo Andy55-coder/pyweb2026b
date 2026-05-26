@@ -32,18 +32,18 @@ client = genai.Client()
 
 @app.route("/")
 def index():
-    link = "<h1>歡迎進入施富傑的網站網頁</h1>"
+    link = "<h1>歡迎進入黃彥璋的網站網頁</h1>"
     link += "<a href=/mis>課程</a><hr>"
     link += "<a href=/today>今天日期</a><hr>"
-    link += "<a href=/about>關於富傑</a><hr>"
-    link += "<a href=/welcome?u=富傑&dep=靜宜資管>GET傳</a><hr>"
+    link += "<a href=/about>關於彥璋</a><hr>"
+    link += "<a href=/welcome?u=彥璋&dep=靜宜資管>GET傳</a><hr>"
     link += "<a href=/account>POST傳直(帳號密碼)</a><hr>"
     link += "<a href=/math>數學運算</a><hr>"
     link += "<a href=/cup>擲茭</a><hr>"
     link += "<br><a href=/read>讀取Firestore資料(根據lab遞減排序取前4)</a><br>"
     link += "<a href=/search>查詢老師研究室</a><hr>"
     link += "<a href=/movie>即將上映電影</a><hr>"
-    link += "<br><a href=/movie2>讀取開眼電影即將上映影片，寫入Firestore</a><br>"
+    link += "<br><a href=/movie2>讀取開眼電影即將上映影片，寫入Firestore</a><hr>"
     link += "<a href=/movie3>電影搜尋</a><hr>"
     link += "<a href=/traffic>易肇事路口查詢</a><hr>"
     link += "<a href=/weather>氣象預報查詢</a><hr>"
@@ -105,7 +105,7 @@ def webhook3():
         # 功能 A：使用者選擇了電影分級 (原本的 Firestore 撈資料邏輯)
         if action == "rateChoice":
             rate = query_result.get("parameters", {}).get("rate", "")
-            info = "我是施富傑開發的電影聊天機器人,您選擇的電影分級是：" + rate + "，相關電影：\n"
+            info = "我是黃彥璋開發的電影聊天機器人,您選擇的電影分級是：" + rate + "，相關電影：\n"
            
             db = firestore.client()
             collection_ref = db.collection("本週新片含分級")
@@ -148,7 +148,7 @@ def webhook3():
 
             except Exception as ai_err:
                 # 如果 Gemini 剛好沒額度或出錯，提供安全罐頭回覆
-                info = "我是施富傑開發的電影聊天機器人。我現在有點累了，請對我說「普遍級」或「限制級」來查電影吧！"
+                info = "我是黃彥璋開發的電影聊天機器人。我現在有點累了，請對我說「普遍級」或「限制級」來查電影吧！"
 
             return make_response(jsonify({"fulfillmentText": info}))
 
