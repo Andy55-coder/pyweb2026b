@@ -153,20 +153,28 @@ def webhook():
         # 回傳給 Dialogflow
         return make_response(jsonify({"fulfillmentText": info}))
 
-    # 這裡就是您要加入的兩行邏輯（已修正縮進與安全讀取）
+    # 🛠️ 修正 1：elif 必須跟上面的 if 對齊，不能縮進進去
     elif action == "input.unknown":
-        ai_config = types.GenerteContentConfig(
-            max_output_tokens = 500
+        # 安全地取得使用者輸入的文字
+        user_query = req.get("queryResult", {}).get("queryText", "")
+
+        # 🛠️ 修正 2：更正拼字錯誤 GenerateContentConfig
+        ai_config = types.GenerateContentConfig(
+            max_output_tokens=500
         )
 
+        # 呼叫 Gemini API
         response = client.models.generate_content(
-            model='gemini-3.5-flash', 
-            contents='req["queryResult"]["queryText"]',
+            model='gemini-2.5-flash', # 💡 修正 3：更正模型名稱
+            contents=user_query,       # 💡 修正 4：傳入變數，而不是字串
             config=ai_config,
         )
         info = response.text
 
         return make_response(jsonify({"fulfillmentText": info}))
+
+    # 漏掉的預設回覆，當既不是 rateChoice 也不是 input.unknown 時執行
+    return make_response(jsonify({"fulfillmentText": "機器人目前不理解這個動作。"}))
 
 
 # ================== movie2 ==================
