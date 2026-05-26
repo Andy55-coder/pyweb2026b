@@ -7,11 +7,12 @@ from bs4 import BeautifulSoup
 import firebase_admin
 from firebase_admin import credentials, firestore
 from flask import Flask, render_template, request, make_response, jsonify
+
+# 💡 乾淨俐落！只保留最新版官方 SDK，徹底刪除 google.generativeai
 from google import genai
 from google.genai import types
 
 # ================== Firebase 初始化 ==================
-# 判斷是在 Vercel 還是本地環境
 if not firebase_admin._apps:
     if os.path.exists('serviceAccountKey.json'):
         cred = credentials.Certificate('serviceAccountKey.json')
@@ -22,9 +23,13 @@ if not firebase_admin._apps:
 
     firebase_admin.initialize_app(cred)
 
-app = Flask(__name__)
-client = genai.Client()
+# 宣告全域 db
+db = firestore.client()
 
+app = Flask(__name__)
+
+# 💡 初始化新版 Client (會自動讀取 Vercel 後台的 GEMINI_API_KEY 環境變數)
+client = genai.Client()
 
 
 @app.route("/")

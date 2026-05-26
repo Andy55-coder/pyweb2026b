@@ -1,5 +1,5 @@
-flask
-firebase_admin
-google-cloud-firestore
-bs4
-google-genai
+Flask==3.0.3
+firebase-admin==6.5.0
+requests==2.31.0
+beautifulsoup4==4.12.3
+google-genai==0.1.1
