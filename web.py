@@ -155,10 +155,18 @@ def webhook():
 
     # 這裡就是您要加入的兩行邏輯（已修正縮進與安全讀取）
     elif action == "input.unknown":
-        info = req.get("queryResult", {}).get("queryText", "")
-        return make_response(jsonify({"fulfillmentText": info}))
+        ai_config = types.GenerteContentConfig(
+            max_output_tokens = 128
+        )
 
-    return make_response(jsonify({"fulfillmentText": "機器人目前不理解這個動作。"}))
+        response = client.models.generate_content(
+            model='gemini-3.5-flash', 
+            contents='req["queryResult"]["queryText"]',
+            config=ai_config,
+        )
+        info = response.text
+
+        return make_response(jsonify({"fulfillmentText": info}))
 
 
 # ================== movie2 ==================
