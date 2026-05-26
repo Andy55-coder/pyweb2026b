@@ -156,7 +156,7 @@ def webhook():
         )
 
         response = client.models.generate_content(
-            model='gemini-3.5-flash', # 註：目前官方正式版為 2.5，若您有特殊管道使用 3.5 請保持原樣
+            model='gemini-2.5-flash', # 註：目前官方正式版為 2.5，若您有特殊管道使用 3.5 請保持原樣
             contents=req["queryResult"]["queryText"],
             config=ai_config
         )
