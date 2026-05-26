@@ -116,48 +116,60 @@ def read():
 # ================== Webhook (Dialogflow) ==================
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    # build a request object
     req = request.get_json(force=True)
-    # fetch queryResult from json
-    action =  req["queryResult"]["action"]
-    #msg =  req["queryResult"]["queryText"]
-    #info = "我是吳菀秦設計的電影聊天機器人, 動作：" + action + "； 查詢內容：" + msg
-    if (action == "rateChoice"):
-        rate =  req["queryResult"]["parameters"]["rate"]
-        info = "我是黃彥璋設計的電影聊天機器人,您選擇的電影分級是：" + rate + "，相關電影：\n"
-
+    action = req.get("queryResult").get("action")
+    
+    # 預設回傳訊息，防止 action 都不匹配時報錯
+    info = "抱歉，我聽不懂你在說什麼。" 
+    
+    if action == "rateChoice":
+        # 取得 Dialogflow 傳來的分級 (例如: "輔12級")
+        rate = req.get("queryResult").get("parameters").get("rate")
+        
+        info = f"我是黃彥璋設計的電影聊天機器人，您選擇的分級是：{rate}，相關電影：\n\n"
+        
         db = firestore.client()
+        # 集合名稱改為 "本週新片含分級"
         collection_ref = db.collection("本週新片含分級")
-        docs = collection_ref.get()
+        
+        # 使用精確查詢
+        docs = collection_ref.where("rate", "==", rate).get()
+        
         result = ""
         for doc in docs:
-            dict = doc.to_dict()
-            if rate in dict["rate"]:
-                result += "片名：" + dict["title"] + "\n"
-                result += "介紹：" + dict["hyperlink"] + "\n\n"
+            movie_data = doc.to_dict()
+            title = movie_data.get("title", "未知片名")
+            picture = movie_data.get("picture", "#")
+            
+            result += f"🎬 片名：{title}\n"
+            result += f"🔗 圖片/連結：{picture}\n\n"
+        
+        if not result:
+            result = f"找不到符合 {rate} 的電影，請確認分級輸入是否正確（例如：輔12級）。"
+            
         info += result
 
-    elif (action == "input.unknown"):
-        #info =  req["queryResult"]["queryText"]
-
-        # 2. 建立設定物件，設定你希望限制的最大 Token 數（例如 500）
+    elif action == "input.unknown":
+        # 設定希望限制的最大 Token 數
         ai_config = types.GenerateContentConfig(
-            max_output_tokens = 500
+            max_output_tokens=500
         )
 
-
-            # 每次使用者拜訪該路徑時，直接使用全域的 client 呼叫模型
         response = client.models.generate_content(
-            model='gemini-3.5-flash',
+            model='gemini-2.5-flash', # 註：目前官方正式版為 2.5，若您有特殊管道使用 3.5 請保持原樣
             contents=req["queryResult"]["queryText"],
-            config=ai_config,
+            config=ai_config
         )
-   
-        # 回傳生成的文字
+        
+        # 修正縮排：確保 info 有正確賦值
         info = response.text
+    
+    else:
+        # 當 action 都不匹配時的處理
+        info = "Action 不匹配，無法處理此請求。"
 
+    # 統一在最外層回傳給 Dialogflow
     return make_response(jsonify({"fulfillmentText": info}))
-
 # ================== movie2 ==================
 @app.route("/movie2")
 def movie2():
