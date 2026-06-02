@@ -127,27 +127,27 @@ def webhook3():
 
         # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
         # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
+       # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
         elif (action == "input.unknown"):
-            # 取得使用者對聊天機器人說的原始文字
             user_say = query_result.get("queryText", "哈囉")
             
             try:
-                # 1. 依需求將最大 Token 數設定為 500
+                # 1. 設定最大 Token 數為 500
                 ai_config = types.GenerateContentConfig(
                     max_output_tokens = 500
                 )
 
-                # 2. 🚀 放寬判定：只要使用者打字有包含「靜宜」兩個字，就強制觸發特色介紹
+                # 2. 判斷使用者打字有沒有包含「靜宜」
                 if "靜宜" in user_say:
-                    # 💡 更強烈的指令：強迫它剛好寫到 100 字左右，並用句號完美結尾
-                    prompt_with_limit = (
-                        "你是一個精煉的網頁導覽機器人。請用繁體中文介紹「靜宜大學的學校特色與優勢」。"
-                        "【極度重要：你的回覆總字數必須嚴格精簡控制在大約 100 字左右（大約 95-105 字之間），"
-                        "直接切入重點，結尾必須是一個完整的句子與句號，絕對不要說任何前言或廢話！】"
+                    prompt_to_gemini = (
+                        "請撰寫一篇關於「靜宜大學學校特色與資訊管理系優勢」的繁體中文詳細介紹。"
+                        "內文必須包含以下重點：第一、校園環境優美且重視全人教育；"
+                        "第二、擁有豐富的國際化資源；第三、資管系結合理論與專題實作，培養科技人才。"
+                        "【極度重要：這是一篇正式介紹，總字數必須嚴格精簡控制在大約 100 字左右（大約 95-105 字之間）。"
+                        "請直接輸出這段介紹，結尾必須是完整的句子與句號，絕對不要加上任何引言、前言或廢話！】"
                     )
                 else:
-                    # 💡 一般日常問題的 100 字限制提示詞
-                    prompt_with_limit = f"【請用繁體中文回答，總字數請嚴格控制在大約 100 字左右，結尾保持句子完整，不要講廢話。】使用者問題：{user_say}"
+                    prompt_to_gemini = f"【請用繁體中文回答，總字數請嚴格控制在大約 100 字左右，不要講廢話。】使用者問題：{user_say}"
 
                 # 3. 呼叫 gemini-2.5-flash 模型
                 response = client.models.generate_content(
@@ -159,8 +159,9 @@ def webhook3():
                 info = response.text.strip()
 
             except Exception as ai_err:
-                # 安全罐頭回覆
-                info = "我是電影聊天機器人。現在有點累了，請對我說「普遍級」或「限制級」來查電影吧！"
+                # 🚀 【關鍵修正】把原本的罐頭訊息拿掉，直接回傳真正的錯誤原因！
+                # 這樣你在網頁畫面上就能直接看到是 API Key 沒設好，還是模型名稱的問題
+                info = f"Gemini 呼叫失敗，錯誤原因: {str(ai_err)}"
 
             return make_response(jsonify({"fulfillmentText": info}))
 
