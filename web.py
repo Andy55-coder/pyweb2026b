@@ -139,7 +139,7 @@ def webhook3():
             # ✅ 補上原本漏掉的 try-except 區塊
             try:
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',  # 依你的需求設定模型
+                    model='gemini-3.1-flash',  # 依你的需求設定模型
                     contents=user_say,      
                     config=ai_config,      
                 )
