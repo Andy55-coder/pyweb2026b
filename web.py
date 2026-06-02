@@ -154,19 +154,25 @@ def webhook3():
                     system_instruction=instruction_text
                 )
 
-                # 3. 呼叫 Gemini 模型（內容直接帶入使用者的話 user_say 即可）
+                # 3. 呼叫指定的 gemini-3.1-flash-lite 模型
                 response = client.models.generate_content(
-            model='gemini-3.1-flash-lite', 
-            contents=req["queryResult"]["queryText"],
-            config=ai_config,
-        )
+                    model='gemini-3.1-flash-lite',  # 🚀 已為你換上指定的 3.1-flash-lite 模型
+                    contents=user_say,
+                    config=ai_config,
+                )
 
-        if response.text:
-            info = response.text
-        else:
-            info = "抱歉，我現在無法生成回應，請稍後再試。"
+                # 4. 判斷是否有文字回傳（⚠️ 必須正確縮排在 try 區塊內）
+                if response.text:
+                    info = response.text.strip()
+                else:
+                    info = "抱歉，我現在無法生成回應，請稍後再試。"
 
-    return make_response(jsonify({"fulfillmentText": info}))
+            except Exception as ai_err:
+                # 💡 萬一模型代號不支援或 API 噴錯，會把真正的錯誤原因顯示在 Dialogflow 上，方便你除錯
+                info = f"Gemini 呼叫失敗，錯誤原因: {str(ai_err)}"
+
+            # 5. 回傳結果給 Dialogflow（⚠️ 縮排對齊 elif，確保不管成功或失敗都會 return）
+            return make_response(jsonify({"fulfillmentText": info}))
 
     except Exception as e:
         # 發生意外錯誤時的安全防護
