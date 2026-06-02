@@ -156,18 +156,17 @@ def webhook3():
 
                 # 3. 呼叫 Gemini 模型（內容直接帶入使用者的話 user_say 即可）
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',  
-                    contents=user_say,      
-                    config=ai_config,      
-                )
-                
-                info = response.text.strip()
+            model='gemini-3.1-flash-lite', 
+            contents=req["queryResult"]["queryText"],
+            config=ai_config,
+        )
 
-            except Exception as ai_err:
-                # 這樣寫如果出錯，Dialogflow 畫面上會直接告訴你原因（例如 API key 沒設好）
-                info = f"Gemini 呼叫失敗，錯誤原因: {str(ai_err)}"
+        if response.text:
+            info = response.text
+        else:
+            info = "抱歉，我現在無法生成回應，請稍後再試。"
 
-            return make_response(jsonify({"fulfillmentText": info}))
+    return make_response(jsonify({"fulfillmentText": info}))
 
     except Exception as e:
         # 發生意外錯誤時的安全防護
