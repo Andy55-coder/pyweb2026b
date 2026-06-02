@@ -19,7 +19,7 @@ else:
 
 firebase_admin.initialize_app(cred)
 
-from flask import Flask, render_template, request, make_response, jsonify
+from flask import Flask, render_template,request, make_response, jsonify
 from google import genai
 from google.genai import types
 
@@ -66,6 +66,7 @@ def ask():
             return response.text
         except Exception as e:
             return f"發生錯誤: {str(e)}", 500
+
     else:    
         # 當使用者直接打開網頁 (GET) 時，顯示輸入框畫面
         return render_template("ask.html")
@@ -80,9 +81,12 @@ def AI():
         )
         return response.text
     except Exception as e:
+        # 捕捉所有錯誤（包含 429 額度用完）
         error_msg = str(e)
         if "429" in error_msg or "RESOURCE_EXHAUSTED" in error_msg:
             return "<h3>Gemini AI 今日免費額度（20次）已達上限 😢，請稍後或明天再試！</h3><br><a href='/'>回首頁</a>"
+       
+        # 其他類型的錯誤（例如 API Key 沒設好）
         return f"<h3>AI 服務暫時無法使用</h3><p>錯誤原因：{error_msg}</p><br><a href='/'>回首頁</a>"
 
 @app.route("/demo")
@@ -95,25 +99,25 @@ def webhook3():
         req = request.get_json(force=True)
         query_result = req.get("queryResult", {})
         action = query_result.get("action")
-        
+       
         info = ""
 
-        # 功能 A：使用者選擇了電影分級
+        # 功能 A：使用者選擇了電影分級 (原本的 Firestore 撈資料邏輯)
         if action == "rateChoice":
             rate = query_result.get("parameters", {}).get("rate", "")
             info = "我是黃彥璋開發的電影聊天機器人,您選擇的電影分級是：" + rate + "，相關電影：\n"
-            
+           
             db = firestore.client()
             collection_ref = db.collection("本週新片含分級")
             docs = collection_ref.get()
-            
+           
             result = ""
             for doc in docs:
                 movie_data = doc.to_dict()
                 if rate in movie_data.get("rate", ""):
                     result += "片名：" + movie_data.get("title") + "\n"
                     result += "介紹：" + movie_data.get("hyperlink") + "\n\n"
-            
+           
             if result == "":
                 info += "目前查無此分級的電影。"
             else:
@@ -121,31 +125,29 @@ def webhook3():
 
             return make_response(jsonify({"fulfillmentText": info}))
 
-        # 🚀 功能 B：當 Dialogflow 聽不懂時 (input.unknown)，呼叫 Gemini AI 回答
-        elif action == "input.unknown":
-            # ✅ 補上 user_say 的定義，從 Dialogflow 拿到使用者講的話
-            user_say = query_result.get("queryText", "")
-            
-            instruction_text = (
-                "你是一個熱心且知識豐富的專業智慧助理。"
-                "對於使用者的提問，請回覆重點的關鍵字，不要重述問題。"         
-            )
-
-            ai_config = types.GenerateContentConfig(
-                max_output_tokens=500, 
-                system_instruction=instruction_text
-            )
-
-            # ✅ 補上原本漏掉的 try-except 區塊
+        # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答（結合投影片第 2 & 3 步）
+        elif (action == "input.unknown"):
+            # 取得使用者對聊天機器人說的原始文字
+            user_say = query_result.get("queryText", "哈囉")
+           
             try:
+                # #2. 建立設定物件，限制最大 Token 數為 128，防止無法回傳結果
+                ai_config = types.GenerateContentConfig(
+                    max_output_tokens = 500
+                )
+
+                # #3. 呼叫 gemini-3.5-flash 模型，並帶入 config 與使用者的問題
+                # 3. 呼叫模型，將 3.5 改成 1.5
                 response = client.models.generate_content(
-                    model='gemini-3.1-flash',  # 依你的需求設定模型
+                    model='gemini-2.5-flash',  # 🚀 改成 1.5-flash 獲得每天 1500 次的超大免費額度
                     contents=user_say,      
                     config=ai_config,      
                 )
+               
                 info = response.text
+
             except Exception as ai_err:
-                # 如果 Gemini 出錯，提供安全罐頭回覆
+                # 如果 Gemini 剛好沒額度或出錯，提供安全罐頭回覆
                 info = "我是黃彥璋開發的電影聊天機器人。我現在有點累了，請對我說「普遍級」或「限制級」來查電影吧！"
 
             return make_response(jsonify({"fulfillmentText": info}))
@@ -156,8 +158,12 @@ def webhook3():
 
 @app.route("/webhook2", methods=["POST"])
 def webhook2():
+    # build a request object
     req = request.get_json(force=True)
+    # fetch queryResult from json
     action =  req.get("queryResult").get("action")
+    #msg =  req.get("queryResult").get("queryText")
+    #info = "動作：" + action + "； 查詢內容：" + msg
     if (action == "rateChoice"):
         rate =  req.get("queryResult").get("parameters").get("rate")
         info = "您選擇的電影分級是：" + rate
@@ -166,7 +172,9 @@ def webhook2():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
+    # build a request object
     req = request.get_json(force=True)
+    # fetch queryResult from json
     action =  req.get("queryResult").get("action")
     msg =  req.get("queryResult").get("queryText")
     info = "動作：" + action + "； 查詢內容：" + msg
@@ -176,17 +184,21 @@ def webhook():
 @app.route("/rate")
 def rate():
     try:
+        # 本週新片
         url = "https://www.atmovies.com.tw/movie/new/"
-        Data = requests.get(url, timeout=10) 
+        Data = requests.get(url, timeout=10) # 加上 timeout 防止被外部網站卡死
         Data.encoding = "utf-8"
         sp = BeautifulSoup(Data.text, "html.parser")
-        
+       
+        # 防止網站抓不到更新日期
         try:
             lastUpdate = sp.find(class_="smaller09").text[5:]
         except:
             lastUpdate = "未知日期"
 
         result = sp.select(".filmList")
+
+        # 🚀 把 Firestore 初始化移到迴圈外面，提高效能
         db = firestore.client()
 
         for x in result:
@@ -194,17 +206,19 @@ def rate():
                 title = x.find("a").text if x.find("a") else "未命名電影"
                 introduce = x.find("p").text if x.find("p") else "暫無介紹"
 
+                # 防呆：確保能拿到 href
                 a_tag = x.find("a")
                 if a_tag and a_tag.get("href"):
                     movie_id = a_tag.get("href").replace("/", "").replace("movie", "")
                 else:
-                    continue
+                    continue # 拿不到 id 就跳過這一部，避免後面崩潰
 
                 hyperlink = "http://www.atmovies.com.tw/movie/" + movie_id
                 picture = "https://www.atmovies.com.tw/photo101/" + movie_id + "/pm_" + movie_id + ".jpg"
 
+                # 處理分級
                 r = x.find(class_="runtime").find("img") if x.find(class_="runtime") else None
-                rate = "限制級" 
+                rate = "限制級" # 預設值
                 if r != None:
                     rr = r.get("src").replace("/images/cer_", "").replace(".gif", "")
                     if rr == "G": rate = "普遍級"
@@ -212,26 +226,27 @@ def rate():
                     elif rr == "F2": rate = "輔12級"
                     elif rr == "F5": rate = "輔15級"
 
+                # 🚀 處理片長與上映日期（加入強大的防空保護）
                 t_element = x.find(class_="runtime")
                 t = t_element.text if t_element else ""
-                
-                showLength = 0 
+               
+                showLength = 0 # 預設片長 0 分鐘
                 t1 = t.find("片長")
                 t2 = t.find("分")
                 if t1 != -1 and t2 != -1 and t2 > t1:
                     try:
                         showLength = int(t[t1+3:t2].strip())
                     except ValueError:
-                        showLength = 0 
+                        showLength = 0 # 如果轉數字失敗，就當作 0
 
-                showDate = "未提供" 
+                showDate = "未提供" # 預設日期
                 d1 = t.find("上映日期")
                 d2 = t.find("上映廳數")
                 if d1 != -1:
                     if d2 != -1 and d2 > d1:
                         showDate = t[d1+5:d2-8].strip()
                     else:
-                        showDate = t[d1+5:].strip()
+                        showDate = t[d1+5:].strip() # 如果沒有上映廳數，就切到最後面
 
                 doc = {
                     "title": title,
@@ -239,21 +254,23 @@ def rate():
                     "picture": picture,
                     "hyperlink": hyperlink,
                     "showDate": showDate,
-                    "showLength": showLength, 
+                    "showLength": showLength, # 確保一定是 int
                     "rate": rate,
                     "lastUpdate": lastUpdate
                 }
 
                 doc_ref = db.collection("本週新片含分級").document(movie_id)
                 doc_ref.set(doc)
-                
+               
             except Exception as e:
+                # 如果某一單部電影資料結構怪怪的，只會跳過那一部，不會讓整個網頁崩潰
                 print(f"處理單部電影時跳過，原因: {str(e)}")
                 continue
 
         return "本週新片已爬蟲及存檔完畢，網站最近更新日期為：" + lastUpdate
 
     except Exception as e:
+        # 如果整個連線或大結構爆掉，回傳優雅的錯誤訊息，而不噴 500
         return f"<h3>爬蟲執行失敗</h3><p>錯誤原因：{str(e)}</p><br><a href='/'>回首頁</a>"
 
 @app.route("/weather", methods=["GET", "POST"])
@@ -266,6 +283,7 @@ def weather():
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
         token = "rdec-key-123-45678-011121314"
+
         url = (
             "https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-C0032-001"
             + "?Authorization=" + token
@@ -275,6 +293,7 @@ def weather():
 
         data = requests.get(url, verify=False)
         jsonData = json.loads(data.text)
+
         locations = jsonData.get("records", {}).get("location", [])
 
         if len(locations) == 0:
@@ -289,6 +308,7 @@ def weather():
         降雨機率：{rain}%<br><br>
         <a href='/weather'>返回</a>
         """
+
         return result
 
     return """
@@ -347,13 +367,16 @@ def traffic():
 def movie3():
     if request.method == "POST":
         keyword = request.form["keyword"]
+
         url = "https://www.atmovies.com.tw/movie/next/"
         data = requests.get(url)
         data.encoding = "utf-8"
 
         sp = BeautifulSoup(data.text, "html.parser")
         result = sp.select(".filmListAllX li")
+
         output = f"<h2>搜尋結果：{keyword}</h2>"
+
         found = False
 
         for item in result:
@@ -361,6 +384,7 @@ def movie3():
             link = item.find("a").get("href")
             full_link = "https://www.atmovies.com.tw" + link
 
+            # 🔍 關鍵字比對
             if keyword in title:
                 found = True
                 output += f"{title}<br>"
@@ -384,37 +408,37 @@ def movie3():
 
 @app.route("/movie2")
 def movie2():
-    url = "http://www.atmovies.com.tw/movie/next/"
-    Data = requests.get(url)
-    Data.encoding = "utf-8"
-    sp = BeautifulSoup(Data.text, "html.parser")
-    result = sp.select(".filmListAllX li")
-    lastUpdate = sp.find("div", class_="smaller09").text[5:]
+  url = "http://www.atmovies.com.tw/movie/next/"
+  Data = requests.get(url)
+  Data.encoding = "utf-8"
+  sp = BeautifulSoup(Data.text, "html.parser")
+  result=sp.select(".filmListAllX li")
+  lastUpdate = sp.find("div", class_="smaller09").text[5:]
 
-    for item in result:
-        picture = item.find("img").get("src").replace(" ", "")
-        title = item.find("div", class_="filmtitle").text
-        movie_id = item.find("div", class_="filmtitle").find("a").get("href").replace("/", "").replace("movie", "")
-        hyperlink = "http://www.atmovies.com.tw" + item.find("div", class_="filmtitle").find("a").get("href")
-        show = item.find("div", class_="runtime").text.replace("上映日期：", "")
-        show = show.replace("片長：", "")
-        show = show.replace("分", "")
-        showDate = show[0:10]
-        showLength = show[13:]
+  for item in result:
+    picture = item.find("img").get("src").replace(" ", "")
+    title = item.find("div", class_="filmtitle").text
+    movie_id = item.find("div", class_="filmtitle").find("a").get("href").replace("/", "").replace("movie", "")
+    hyperlink = "http://www.atmovies.com.tw" + item.find("div", class_="filmtitle").find("a").get("href")
+    show = item.find("div", class_="runtime").text.replace("上映日期：", "")
+    show = show.replace("片長：", "")
+    show = show.replace("分", "")
+    showDate = show[0:10]
+    showLength = show[13:]
 
-        doc = {
-            "title": title,
-            "picture": picture,
-            "hyperlink": hyperlink,
-            "showDate": showDate,
-            "showLength": showLength,
-            "lastUpdate": lastUpdate
-        }
+    doc = {
+        "title": title,
+        "picture": picture,
+        "hyperlink": hyperlink,
+        "showDate": showDate,
+        "showLength": showLength,
+        "lastUpdate": lastUpdate
+      }
 
-        db = firestore.client()
-        doc_ref = db.collection("電影").document(movie_id)
-        doc_ref.set(doc)    
-    return "近期上映電影已爬蟲及存檔完畢，網站最近更新日期為：" + lastUpdate
+    db = firestore.client()
+    doc_ref = db.collection("電影").document(movie_id)
+    doc_ref.set(doc)    
+  return "近期上映電影已爬蟲及存檔完畢，網站最近更新日期為：" + lastUpdate
 
 
 @app.route("/movie")
@@ -425,12 +449,15 @@ def movie():
 
     sp = BeautifulSoup(data.text, "html.parser")
     result = sp.select(".filmListAllX li")
+
     output = "<h2>即將上映電影</h2>"
 
     for item in result:
         title = item.find("img").get("alt")
         link = item.find("a").get("href")
+
         full_link = "https://www.atmovies.com.tw" + link
+
         output += f"{title}<br>"
         output += f"<a href='{full_link}' target='_blank'>{full_link}</a><br><br>"
 
@@ -441,9 +468,12 @@ def movie():
 def search():
     if request.method == "POST":
         keyword = request.form["keyword"]
+
         db = firestore.client()
         collection_ref = db.collection("靜宜資管2026a")
+
         docs = collection_ref.get()
+
         result = ""
 
         for doc in docs:
@@ -452,7 +482,7 @@ def search():
                 result += f"{user['name']}老師的研究室在 {user['lab']}<br>"
 
         if result == "":
-            result = "查常資料"
+            result = "查無資料"
 
         return result + "<br><a href=/search>返回</a>"
 
@@ -469,9 +499,12 @@ def search():
 @app.route("/read")
 def read():
     db = firestore.client()
+
     collection_ref = db.collection("靜宜資管2026a")
+        #docs = collection_ref.where(filter=FieldFilter("mail","==", "tcyang@pu.edu.tw")).get()
     docs = collection_ref.order_by("lab").limit(3).get()
-    Temp = ""   
+
+    Temp = ""   # ✅ 一定要先初始化
 
     for doc in docs:
         Temp += str(doc.to_dict()) + "<br>"
@@ -495,10 +528,11 @@ def today():
 def about():
     return render_template("about.html")
 
-@app.route("/welcome", methods=["GET"])
+@app.route("/welcome",methods=["GET"])
 def welcome():
     x = request.values.get("u")
     y = request.values.get("dep")
+    # user = request.values.get("nick")
     return render_template("welcome.html", name = x, dep = y)
 
 @app.route("/account", methods=["GET", "POST"])
@@ -554,26 +588,30 @@ def math():
 
 @app.route('/cup', methods=["GET"])
 def cup():
+    # 檢查網址是否有 ?action=toss
+    #action = request.args.get('action')
     action = request.values.get("action")
     result = None
-    
+   
     if action == 'toss':
+        # 0 代表陽面，1 代表陰面
         x1 = random.randint(0, 1)
         x2 = random.randint(0, 1)
-        
+       
+        # 判斷結果文字
         if x1 != x2:
             msg = "聖筊：表示神明允許、同意，或行事會順利。"
         elif x1 == 0:
             msg = "笑筊：表示神明一笑、不解，或者考慮中，行事狀況不明。"
         else:
             msg = "陰筊：表示神明否定、憤怒，或者不宜行事。"
-            
+           
         result = {
             "cup1": "/static/" + str(x1) + ".jpg",
             "cup2": "/static/" + str(x2) + ".jpg",
             "message": msg
         }
-        
+       
     return render_template('cup.html', result=result)
 
 if __name__ == "__main__":
