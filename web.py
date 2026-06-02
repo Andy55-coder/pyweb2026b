@@ -99,25 +99,25 @@ def webhook3():
         req = request.get_json(force=True)
         query_result = req.get("queryResult", {})
         action = query_result.get("action")
-       
+        
         info = ""
 
         # 功能 A：使用者選擇了電影分級 (原本的 Firestore 撈資料邏輯)
         if action == "rateChoice":
             rate = query_result.get("parameters", {}).get("rate", "")
             info = "我是黃彥璋開發的電影聊天機器人,您選擇的電影分級是：" + rate + "，相關電影：\n"
-           
+            
             db = firestore.client()
             collection_ref = db.collection("本週新片含分級")
             docs = collection_ref.get()
-           
+            
             result = ""
             for doc in docs:
                 movie_data = doc.to_dict()
                 if rate in movie_data.get("rate", ""):
                     result += "片名：" + movie_data.get("title") + "\n"
                     result += "介紹：" + movie_data.get("hyperlink") + "\n\n"
-           
+            
             if result == "":
                 info += "目前查無此分級的電影。"
             else:
@@ -125,29 +125,40 @@ def webhook3():
 
             return make_response(jsonify({"fulfillmentText": info}))
 
-        # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答（結合投影片第 2 & 3 步）
+        # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
         elif (action == "input.unknown"):
             # 取得使用者對聊天機器人說的原始文字
             user_say = query_result.get("queryText", "哈囉")
-           
+            
             try:
-                # #2. 建立設定物件，限制最大 Token 數為 128，防止無法回傳結果
+                # 1. 🚀 依需求將最大 Token 數設定為 500
                 ai_config = types.GenerateContentConfig(
                     max_output_tokens = 500
                 )
 
-                # #3. 呼叫 gemini-3.5-flash 模型，並帶入 config 與使用者的問題
-                # 3. 呼叫模型，將 3.5 改成 1.5
+                # 2. 判斷使用者是否在詢問「靜宜特色」
+                if "靜宜" in user_say and ("特色" in user_say or "優點" in user_say or "評價" in user_say):
+                    # 💡 強烈要求字數必須在 100 字左右
+                    prompt_with_limit = (
+                        "你是一個精煉的網頁導覽機器人。請用繁體中文介紹「靜宜大學的學校特色」，"
+                        "內容包含優美的校園環境與具備優勢的資管系。"
+                        "【請注意：你的回覆總字數必須嚴格精簡控制在大約 100 字左右（含標點符號），直接切入重點，不要說任何前言或廢話。】"
+                    )
+                else:
+                    # 💡 一般日常問題的 100 字限制提示詞
+                    prompt_with_limit = f"【請用繁體中文回答，總字數請嚴格控制在大約 100 字左右，不要講廢話。】使用者問題：{user_say}"
+
+                # 3. 呼叫 gemini-2.5-flash 模型
                 response = client.models.generate_content(
-                    model='gemini-2.5-flash',  # 🚀 改成 1.5-flash 獲得每天 1500 次的超大免費額度
-                    contents=user_say,      
+                    model='gemini-2.5-flash',  
+                    contents=prompt_with_limit,  
                     config=ai_config,      
                 )
-               
-                info = response.text
+                
+                info = response.text.strip()
 
             except Exception as ai_err:
-                # 如果 Gemini 剛好沒額度或出錯，提供安全罐頭回覆
+                # 安全罐頭回覆
                 info = "我是黃彥璋開發的電影聊天機器人。我現在有點累了，請對我說「普遍級」或「限制級」來查電影吧！"
 
             return make_response(jsonify({"fulfillmentText": info}))
@@ -155,7 +166,6 @@ def webhook3():
     except Exception as e:
         # 發生意外錯誤時的安全防護
         return make_response(jsonify({"fulfillmentText": f"系統忙碌中，請稍後再試。系統訊息: {str(e)}"}))
-
 @app.route("/webhook2", methods=["POST"])
 def webhook2():
     # build a request object
