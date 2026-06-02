@@ -152,7 +152,7 @@ def webhook3():
                 # 3. 呼叫 gemini-2.5-flash 模型
                 response = client.models.generate_content(
                     model='gemini-2.5-flash',  
-                    contents=prompt_with_limit,  
+                    contents=prompt_to_gemini,  
                     config=ai_config,      
                 )
                 
