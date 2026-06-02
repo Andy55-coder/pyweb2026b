@@ -126,27 +126,28 @@ def webhook3():
             return make_response(jsonify({"fulfillmentText": info}))
 
         # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
+        # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
         elif (action == "input.unknown"):
             # 取得使用者對聊天機器人說的原始文字
             user_say = query_result.get("queryText", "哈囉")
             
             try:
-                # 1. 🚀 依需求將最大 Token 數設定為 500
+                # 1. 依需求將最大 Token 數設定為 500
                 ai_config = types.GenerateContentConfig(
                     max_output_tokens = 500
                 )
 
-                # 2. 判斷使用者是否在詢問「靜宜特色」
-                if "靜宜" in user_say and ("特色" in user_say or "優點" in user_say or "評價" in user_say):
-                    # 💡 強烈要求字數必須在 100 字左右
+                # 2. 🚀 放寬判定：只要使用者打字有包含「靜宜」兩個字，就強制觸發特色介紹
+                if "靜宜" in user_say:
+                    # 💡 更強烈的指令：強迫它剛好寫到 100 字左右，並用句號完美結尾
                     prompt_with_limit = (
-                        "你是一個精煉的網頁導覽機器人。請用繁體中文介紹「靜宜大學的學校特色」，"
-                        "內容包含優美的校園環境與具備優勢的資管系。"
-                        "【請注意：你的回覆總字數必須嚴格精簡控制在大約 100 字左右（含標點符號），直接切入重點，不要說任何前言或廢話。】"
+                        "你是一個精煉的網頁導覽機器人。請用繁體中文介紹「靜宜大學的學校特色與優勢」。"
+                        "【極度重要：你的回覆總字數必須嚴格精簡控制在大約 100 字左右（大約 95-105 字之間），"
+                        "直接切入重點，結尾必須是一個完整的句子與句號，絕對不要說任何前言或廢話！】"
                     )
                 else:
                     # 💡 一般日常問題的 100 字限制提示詞
-                    prompt_with_limit = f"【請用繁體中文回答，總字數請嚴格控制在大約 100 字左右，不要講廢話。】使用者問題：{user_say}"
+                    prompt_with_limit = f"【請用繁體中文回答，總字數請嚴格控制在大約 100 字左右，結尾保持句子完整，不要講廢話。】使用者問題：{user_say}"
 
                 # 3. 呼叫 gemini-2.5-flash 模型
                 response = client.models.generate_content(
@@ -159,7 +160,7 @@ def webhook3():
 
             except Exception as ai_err:
                 # 安全罐頭回覆
-                info = "我是黃彥璋開發的電影聊天機器人。我現在有點累了，請對我說「普遍級」或「限制級」來查電影吧！"
+                info = "我是電影聊天機器人。現在有點累了，請對我說「普遍級」或「限制級」來查電影吧！"
 
             return make_response(jsonify({"fulfillmentText": info}))
 
