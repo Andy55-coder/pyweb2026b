@@ -128,39 +128,43 @@ def webhook3():
         # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
         # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
        # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
+        # 🚀 功能 B：當 Dialogflow 聽不懂時，呼叫 Gemini AI 回答
         elif (action == "input.unknown"):
+            # 取得使用者對聊天機器人說的原始文字
             user_say = query_result.get("queryText", "哈囉")
             
-            try:
-                # 1. 設定最大 Token 數為 500
-                ai_config = types.GenerateContentConfig(
-                    max_output_tokens = 500
+            # 1. 根據輸入內容，動態決定系統指令 (System Instruction)
+            if "靜宜" in user_say:
+                # 💡 當偵測到「靜宜」時，切換成強烈要求 100 字特色的指令
+                instruction_text = (
+                    "你是一個精煉的網頁導覽機器人。請用繁體中文詳細介紹靜宜大學的特色與資管系優勢。"
+                    "【極度重要：請嚴格將總字數控制在 100 字左右（約 95-105 字之間），直接輸出介紹，絕對不要說廢話。】"
+                )
+            else:
+                # 💡 一般情況下，使用你原本設定的指令
+                instruction_text = (
+                    "你是一個熱心且知識豐富的專業智慧助理。"
+                    "對於使用者的提問，請回覆重點的關鍵字，不要重述問題。"         
                 )
 
-                # 2. 判斷使用者打字有沒有包含「靜宜」
-                if "靜宜" in user_say:
-                    prompt_to_gemini = (
-                        "請撰寫一篇關於「靜宜大學學校特色與資訊管理系優勢」的繁體中文詳細介紹。"
-                        "內文必須包含以下重點：第一、校園環境優美且重視全人教育；"
-                        "第二、擁有豐富的國際化資源；第三、資管系結合理論與專題實作，培養科技人才。"
-                        "【極度重要：這是一篇正式介紹，總字數必須嚴格精簡控制在大約 100 字左右（大約 95-105 字之間）。"
-                        "請直接輸出這段介紹，結尾必須是完整的句子與句號，絕對不要加上任何引言、前言或廢話！】"
-                    )
-                else:
-                    prompt_to_gemini = f"【請用繁體中文回答，總字數請嚴格控制在大約 100 字左右，不要講廢話。】使用者問題：{user_say}"
+            try:
+                # 2. 建立你的設定物件，並帶入動態調整後的 system_instruction
+                ai_config = types.GenerateContentConfig(
+                    max_output_tokens=500, 
+                    system_instruction=instruction_text
+                )
 
-                # 3. 呼叫 gemini-2.5-flash 模型
+                # 3. 呼叫 Gemini 模型（內容直接帶入使用者的話 user_say 即可）
                 response = client.models.generate_content(
                     model='gemini-2.5-flash',  
-                    contents=prompt_to_gemini,  
+                    contents=user_say,      
                     config=ai_config,      
                 )
                 
                 info = response.text.strip()
 
             except Exception as ai_err:
-                # 🚀 【關鍵修正】把原本的罐頭訊息拿掉，直接回傳真正的錯誤原因！
-                # 這樣你在網頁畫面上就能直接看到是 API Key 沒設好，還是模型名稱的問題
+                # 這樣寫如果出錯，Dialogflow 畫面上會直接告訴你原因（例如 API key 沒設好）
                 info = f"Gemini 呼叫失敗，錯誤原因: {str(ai_err)}"
 
             return make_response(jsonify({"fulfillmentText": info}))
